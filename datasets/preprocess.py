@@ -67,15 +67,25 @@ def preprocess_hsi_dataset(data_dir, out_dir, patch_size=32, stride=16):
                     img = np.array(img)
                     # 自动适配 shape 到 [C, H, W]
                     if img.ndim == 3:
-                        # [H, W, C] -> [C, H, W]，只要最后一个维度小于100就转置
-                        if img.shape[2] < 100:
-                            img = img.transpose(2, 0, 1)
-                        # [C, H, W]，只要第一个维度小于100就直接用
-                        elif img.shape[0] < 100:
-                            pass
+                        # 判断哪个维度是光谱通道（10<C<300，且另外两个远大于100）
+                        cands = [i for i in range(3) if img.shape[i] > 10 and img.shape[i] < 300]
+                        if len(cands) == 1:
+                            c_dim = cands[0]
+                            if c_dim == 0:
+                                pass  # [C, H, W]
+                            elif c_dim == 2:
+                                img = img.transpose(2, 0, 1)  # [H, W, C] -> [C, H, W]
+                            elif c_dim == 1:
+                                img = img.transpose(1, 0, 2)  # [H, C, W] -> [C, H, W]
                         else:
-                            print(f"Warning: {fname} shape {img.shape} is not recognized as HWC or CHW, skip.")
-                            continue
+                            # 针对如Chikusei (128, 2335, 2517)等情况，若第一个维度在10~300且后两个远大于100，也直接认定为[C,H,W]
+                            if img.shape[0] > 10 and img.shape[0] < 300 and img.shape[1] > 100 and img.shape[2] > 100:
+                                pass
+                            elif img.shape[2] > 10 and img.shape[2] < 300 and img.shape[0] > 100 and img.shape[1] > 100:
+                                img = img.transpose(2, 0, 1)
+                            else:
+                                print(f"Warning: {fname} shape {img.shape} is not recognized as HWC or CHW, skip.")
+                                continue
                     else:
                         print(f"Warning: {fname} data shape {img.shape} is not 3D, skip.")
                         continue
@@ -93,15 +103,26 @@ def preprocess_hsi_dataset(data_dir, out_dir, patch_size=32, stride=16):
                                 print(f"Info: {fname} (h5) has multiple keys {data_keys}, use the first one: {data_keys[0]}")
                             img = f[data_keys[0]][()]
                             img = np.array(img)
-                            # HDF5 读出来一般是 (H, W, C) 或 (C, H, W)，和前面一样判断 shape
+                            # 通用 shape 判断逻辑，和 scipy.io 读取部分保持一致
                             if img.ndim == 3:
-                                if img.shape[2] < 100:
-                                    img = img.transpose(2, 0, 1)
-                                elif img.shape[0] < 100:
-                                    pass
+                                cands = [i for i in range(3) if img.shape[i] > 10 and img.shape[i] < 300]
+                                if len(cands) == 1:
+                                    c_dim = cands[0]
+                                    if c_dim == 0:
+                                        pass  # [C, H, W]
+                                    elif c_dim == 2:
+                                        img = img.transpose(2, 0, 1)  # [H, W, C] -> [C, H, W]
+                                    elif c_dim == 1:
+                                        img = img.transpose(1, 0, 2)  # [H, C, W] -> [C, H, W]
                                 else:
-                                    print(f"Warning: {fname} (h5) shape {img.shape} is not recognized as HWC or CHW, skip.")
-                                    continue
+                                    # 针对如Chikusei (128, 2335, 2517)等情况，若第一个维度在10~300且后两个远大于100，也直接认定为[C,H,W]
+                                    if img.shape[0] > 10 and img.shape[0] < 300 and img.shape[1] > 100 and img.shape[2] > 100:
+                                        pass
+                                    elif img.shape[2] > 10 and img.shape[2] < 300 and img.shape[0] > 100 and img.shape[1] > 100:
+                                        img = img.transpose(2, 0, 1)
+                                    else:
+                                        print(f"Warning: {fname} (h5) shape {img.shape} is not recognized as HWC or CHW, skip.")
+                                        continue
                             else:
                                 print(f"Warning: {fname} (h5) data shape {img.shape} is not 3D, skip.")
                                 continue
@@ -148,4 +169,28 @@ def auto_preprocess_all():
         )
 
 if __name__ == "__main__":
-    auto_preprocess_all()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', type=str, default=None, help='只预处理指定数据集（如CAVE、PaviaU等），留空则全部处理')
+    args = parser.parse_args()
+
+    configs = [
+        {"name": "CAVE", "data_dir": "./data/CAVE", "out_dir": "datasets/patches/CAVE", "patch_size": 32, "stride": 16},
+        {"name": "PaviaU", "data_dir": "./data/PaviaU", "out_dir": "datasets/patches/PaviaU", "patch_size": 32, "stride": 16},
+        {"name": "IndianPines", "data_dir": "./data/IndianPines", "out_dir": "datasets/patches/IndianPines", "patch_size": 16, "stride": 8},
+        {"name": "Harvard", "data_dir": "./data/Harvard", "out_dir": "datasets/patches/Harvard", "patch_size": 32, "stride": 16},
+        {"name": "Chikusei", "data_dir": "./data/Chikusei", "out_dir": "datasets/patches/Chikusei", "patch_size": 32, "stride": 16},
+    ]
+    if args.dataset:
+        configs = [cfg for cfg in configs if cfg['name'].lower() == args.dataset.lower()]
+        if not configs:
+            print(f"No config found for dataset {args.dataset}")
+            exit(1)
+    for cfg in configs:
+        print(f"Processing {cfg['name']} ...")
+        preprocess_hsi_dataset(
+            data_dir=cfg["data_dir"],
+            out_dir=cfg["out_dir"],
+            patch_size=cfg["patch_size"],
+            stride=cfg["stride"]
+        )
