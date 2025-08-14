@@ -33,6 +33,7 @@ def compute_sam(pred, target):
 
 def compute_ergas(pred, target, ratio=4):
     """ERGAS指标，ratio为空间分辨率比（如4倍超分则为4）"""
+    # patch 已归一化到[0,1]，直接用归一化值计算ERGAS
     pred = pred.astype(np.float64)
     target = target.astype(np.float64)
     C = pred.shape[0]
