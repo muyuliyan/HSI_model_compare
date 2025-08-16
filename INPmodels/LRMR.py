@@ -22,7 +22,11 @@ def lrmr_inpainting(X_obs, mask, lam=0.01, tol=1e-7, max_iter=500):
     Y = np.zeros_like(X_obs)
     L = np.zeros_like(X_obs)
     S = np.zeros_like(X_obs)
-    mu = 1.25 / np.linalg.norm(X_obs)
+    norm = np.linalg.norm(X_obs)
+    if norm == 0:
+        # 跳过该 patch 或设为较大值
+        return X_obs.copy()
+    mu = 1.25 / norm
     mu_max = 1e7
     rho = 1.5
 
