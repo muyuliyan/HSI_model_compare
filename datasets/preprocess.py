@@ -31,7 +31,7 @@ def normalize(img):
     img_max = img.max()
     return (img - img_min) / (img_max - img_min + 1e-8)
 
-def preprocess_hsi_dataset(data_dir, out_dir, patch_size=32, stride=16):
+def preprocess_hsi_dataset(data_dir, out_dir, patch_size=48, stride=24):
     """
     针对高光谱数据集的通用预处理，支持多级子目录
     data_dir: 原始数据文件夹
